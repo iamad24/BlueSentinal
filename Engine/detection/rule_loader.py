@@ -15,7 +15,7 @@ class SigmaRuleLoader:
         sigma_repository_path: str | Path | None = None,
         custom_rules_path: str | Path | None = None,
     ):
-        project_root = Path(__file__).resolve().parents[3]
+        project_root = Path(__file__).resolve().parents[2]
 
         if sigma_repository_path is None:
             sigma_repository_path = (
@@ -24,7 +24,7 @@ class SigmaRuleLoader:
 
         if custom_rules_path is None:
             custom_rules_path = (
-                project_root / "XDR" / "sigma_rules" / "custom"
+                project_root / "sigma_rules" / "custom"
             )
 
         self.sigma_repository_path = Path(sigma_repository_path)
