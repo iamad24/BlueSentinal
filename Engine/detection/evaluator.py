@@ -117,6 +117,7 @@ class SigmaEvaluator:
             selection
             selection and filter
             selection or filter
+            not selection
             1 of selection*
             all of selection*
             1 of them
@@ -168,6 +169,19 @@ class SigmaEvaluator:
                     event,
                 )
                 for part in and_parts
+            )
+
+        # -----------------------------------------------------
+        # NOT
+        # -----------------------------------------------------
+
+        if condition.lower().startswith("not "):
+            inner_condition = condition[4:].strip()
+
+            return not self._evaluate_condition(
+                inner_condition,
+                detection,
+                event,
             )
 
         # -----------------------------------------------------
@@ -645,7 +659,15 @@ class SigmaEvaluator:
 
                 if modifier == "contains":
 
-                    if (
+                    # In Sigma, contains: "*" is used as
+                    # a wildcard meaning that some content
+                    # should exist.
+                    if expected_string == "*":
+
+                        if not result:
+                            return False
+
+                    elif (
                         expected_string.lower()
                         not in result.lower()
                     ):
@@ -861,3 +883,7 @@ class SigmaEvaluator:
             evidence["raw_event"] = raw_event
 
         return evidence
+
+
+if __name__ == "__main__":
+    print("SigmaEvaluator loaded successfully.")
