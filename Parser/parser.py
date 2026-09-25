@@ -25,20 +25,6 @@ class LogParser:
         self,
         raw_event: dict[str, Any],
     ) -> SecurityEvent:
-        """
-        Parse a raw event into a SecurityEvent.
-
-        Parameters
-        ----------
-        raw_event:
-            Raw security event represented as a dictionary.
-
-        Returns
-        -------
-        SecurityEvent
-            Normalized security event.
-        """
-
         if not isinstance(raw_event, dict):
             raise TypeError(
                 "raw_event must be a dictionary."
@@ -59,10 +45,6 @@ class LogParser:
             raw_event=raw_event,
         )
 
-    # =========================================================
-    # Timestamp
-    # =========================================================
-
     @staticmethod
     def _extract_timestamp(
         raw_event: dict[str, Any],
@@ -70,8 +52,12 @@ class LogParser:
         """
         Extract the event timestamp.
 
-        The detailed timestamp normalization will be
-        implemented in normalizer.py.
+        Supports common timestamp field names used by:
+
+        - Wazuh
+        - Windows Event Logs
+        - Sysmon
+        - Generic JSON telemetry
         """
 
         timestamp = (
@@ -79,6 +65,7 @@ class LogParser:
             or raw_event.get("Timestamp")
             or raw_event.get("@timestamp")
             or raw_event.get("time")
+            or raw_event.get("TimeCreated")
         )
 
         if timestamp is None:
@@ -88,18 +75,10 @@ class LogParser:
 
         return timestamp
 
-    # =========================================================
-    # Host
-    # =========================================================
-
     @staticmethod
     def _extract_host(
         raw_event: dict[str, Any],
     ) -> str:
-        """
-        Extract the hostname from the raw event.
-        """
-
         host = (
             raw_event.get("host")
             or raw_event.get("hostname")
@@ -112,18 +91,10 @@ class LogParser:
 
         return str(host)
 
-    # =========================================================
-    # Operating System
-    # =========================================================
-
     @staticmethod
     def _extract_os(
         raw_event: dict[str, Any],
     ) -> str:
-        """
-        Determine the operating system from the raw event.
-        """
-
         os_name = (
             raw_event.get("os")
             or raw_event.get("OS")
@@ -133,7 +104,6 @@ class LogParser:
         if os_name:
             return str(os_name).lower()
 
-        # Windows-specific indicators
         if any(
             key in raw_event
             for key in (
@@ -146,7 +116,6 @@ class LogParser:
         ):
             return "windows"
 
-        # Linux-specific indicators
         if any(
             key in raw_event
             for key in (
@@ -159,22 +128,11 @@ class LogParser:
 
         return "unknown"
 
-    # =========================================================
-    # Event Type Detection
-    # =========================================================
-
     @classmethod
     def _detect_event_type(
         cls,
         raw_event: dict[str, Any],
     ) -> str:
-        """
-        Determine the normalized event type.
-
-        The parser uses observable fields rather than
-        assuming that every event has the same structure.
-        """
-
         explicit_type = (
             raw_event.get("event_type")
             or raw_event.get("eventType")
@@ -184,10 +142,7 @@ class LogParser:
         if explicit_type:
             return str(explicit_type).lower()
 
-        # -----------------------------------------------------
-        # PowerShell
-        # -----------------------------------------------------
-
+        # PowerShell / Script Block events
         if any(
             key in raw_event
             for key in (
@@ -199,10 +154,7 @@ class LogParser:
         ):
             return "powershell_script"
 
-        # -----------------------------------------------------
-        # Process creation
-        # -----------------------------------------------------
-
+        # Process creation events
         if (
             raw_event.get("EventID") in (1, "1")
             or raw_event.get("EventId") in (1, "1")
@@ -221,10 +173,7 @@ class LogParser:
         ):
             return "process_creation"
 
-        # -----------------------------------------------------
-        # Network activity
-        # -----------------------------------------------------
-
+        # Network events
         if any(
             key in raw_event
             for key in (
@@ -234,14 +183,13 @@ class LogParser:
                 "dst_ip",
                 "SourceIp",
                 "DestinationIp",
+                "SourceIP",
+                "DestinationIP",
             )
         ):
             return "network_connection"
 
-        # -----------------------------------------------------
-        # Registry activity
-        # -----------------------------------------------------
-
+        # Registry events
         if any(
             key in raw_event
             for key in (
@@ -252,10 +200,7 @@ class LogParser:
         ):
             return "registry_event"
 
-        # -----------------------------------------------------
-        # File activity
-        # -----------------------------------------------------
-
+        # File events
         if any(
             key in raw_event
             for key in (
@@ -268,18 +213,10 @@ class LogParser:
 
         return "unknown"
 
-    # =========================================================
-    # Log Source
-    # =========================================================
-
     @staticmethod
     def _detect_log_source(
         raw_event: dict[str, Any],
     ) -> str:
-        """
-        Determine the source that produced the telemetry.
-        """
-
         explicit_source = (
             raw_event.get("log_source")
             or raw_event.get("logsource")
@@ -289,7 +226,7 @@ class LogParser:
         if explicit_source:
             return str(explicit_source).lower()
 
-        # Wazuh alerts
+        # Wazuh event
         if (
             "rule" in raw_event
             and (
@@ -299,14 +236,20 @@ class LogParser:
         ):
             return "wazuh"
 
-        # Sysmon indicators
-        if raw_event.get("Channel") == "Microsoft-Windows-Sysmon/Operational":
+        # Sysmon events
+        if (
+            raw_event.get("Channel")
+            == "Microsoft-Windows-Sysmon/Operational"
+        ):
             return "sysmon"
 
-        if raw_event.get("ProviderName") == "Microsoft-Windows-Sysmon":
+        if (
+            raw_event.get("ProviderName")
+            == "Microsoft-Windows-Sysmon"
+        ):
             return "sysmon"
 
-        # Windows Event Log indicators
+        # Windows Event Logs
         if any(
             key in raw_event
             for key in (
@@ -317,7 +260,7 @@ class LogParser:
         ):
             return "windows"
 
-        # Linux
+        # Linux logs
         if any(
             key in raw_event
             for key in (
